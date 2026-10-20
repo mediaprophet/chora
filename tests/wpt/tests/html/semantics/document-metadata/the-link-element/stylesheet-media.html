@@ -3,15 +3,15 @@
 <title>Test</title>
 <link rel=match href=stylesheet-media-ref.html>
 <style>
-body {
-  color: green;
-}
+  body {
+    color: green;
+  }
 </style>
 <link rel=stylesheet id=link>
 <script>
-// This tests for a bug in Servo, where it would treat the media attribute as
-// if it was the href attribute.
-var link = document.getElementById("link");
-link.setAttribute("media", "all")
+  // This tests for a bug in chora, where it would treat the media attribute as
+  // if it was the href attribute.
+  var link = document.getElementById("link");
+  link.setAttribute("media", "all")
 </script>
 <p>This text should be green.

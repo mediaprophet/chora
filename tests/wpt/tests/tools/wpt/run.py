@@ -114,7 +114,7 @@ def check_environ(product):
     builtin_skip = {
         "android_webview", "chrome", "chrome_android", "chrome_ios",
         "edge", "firefox", "firefox_android", "headless_shell",
-        "ladybird", "servo", "wktr"
+        "ladybird", "chora", "wktr"
     }
 
     if product not in builtin_skip:
@@ -756,9 +756,9 @@ class Sauce(BrowserSetup):
         kwargs["test_types"] = ["testharness", "reftest"]
 
 
-class Servo(BrowserSetup):
-    name = "servo"
-    browser_cls = browser.Servo
+class chora(BrowserSetup):
+    name = "chora"
+    browser_cls = browser.chora
 
     def install(self, channel=None, url=None):
         if self.prompt_install(self.name):
@@ -769,13 +769,13 @@ class Servo(BrowserSetup):
             binary = self.browser.find_binary(self.venv.path, None)
 
             if binary is None:
-                raise WptrunError("Unable to find servoshell binary in PATH")
+                raise WptrunError("Unable to find chorashell binary in PATH")
             kwargs["binary"] = binary
 
 
-class ServoLegacy(Servo):
-    name = "servo_legacy"
-    browser_cls = browser.ServoLegacy
+class choraLegacy(chora):
+    name = "chora_legacy"
+    browser_cls = browser.choraLegacy
 
 
 class WebKit(BrowserSetup):
@@ -879,8 +879,8 @@ BUILTIN_PRODUCT_SETUP = {
     "edge": Edge,
     "headless_shell": HeadlessShell,
     "safari": Safari,
-    "servo": Servo,
-    "servo_legacy": ServoLegacy,
+    "chora": chora,
+    "chora_legacy": choraLegacy,
     "sauce": Sauce,
     "opera": Opera,
     "webkit": WebKit,

@@ -8,8 +8,8 @@ use ::time::Duration;
 use profile::time;
 use profile_traits::ipc as ProfiledIpc;
 use profile_traits::time::{ProfilerCategory, ProfilerData, ProfilerMsg};
-use servo_base::generic_channel;
-use servo_config::opts::OutputOptions;
+use chora_base::generic_channel;
+use chora_config::opts::OutputOptions;
 
 #[test]
 fn time_profiler_smoke_test() {

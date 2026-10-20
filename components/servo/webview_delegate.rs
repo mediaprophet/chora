@@ -911,6 +911,36 @@ impl CreateNewWebViewRequest {
     }
 }
 
+/// A structured message sent from a page or injected script to the host embedder.
+pub struct EmbedderMessageRequest {
+    pub origin: Url,
+    pub channel: String,
+    pub payload: String,
+    response_sender: Option<tokio::sync::oneshot::Sender<Result<String, String>>>,
+}
+
+impl EmbedderMessageRequest {
+    pub fn new(
+        origin: Url,
+        channel: String,
+        payload: String,
+        response_sender: Option<tokio::sync::oneshot::Sender<Result<String, String>>>,
+    ) -> Self {
+        Self {
+            origin,
+            channel,
+            payload,
+            response_sender,
+        }
+    }
+
+    pub fn respond(mut self, reply: Result<String, String>) {
+        if let Some(sender) = self.response_sender.take() {
+            let _ = sender.send(reply);
+        }
+    }
+}
+
 /// A trait that the embedder can implement to customize the behaviour of a [`WebView`] or to
 /// listen to events from a [`WebView`]. Multiple [`WebView`]s can share the same delegate
 /// instance. A [`WebView`]'s delegate needs to be set at the time of creation using
@@ -1085,6 +1115,9 @@ pub trait WebViewDelegate {
         _tree_update: accesskit::TreeUpdate,
     ) {
     }
+
+    /// Called when an injected script or privileged page sends a structured message to the host embedder.
+    fn notify_embedder_message(&self, _webview: WebView, _request: EmbedderMessageRequest) {}
 }
 
 pub(crate) struct DefaultWebViewDelegate;

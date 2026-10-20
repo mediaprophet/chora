@@ -1,12 +1,14 @@
 <!DOCTYPE html>
-<link rel="help" href="https://github.com/servo/servo/issues/42215">
+<link rel="help" href="https://github.com/chora/chora/issues/42215">
 <style>
-  #outer { overflow: hidden; }
+  #outer {
+    overflow: hidden;
+  }
 </style>
 <div id="outer"><span id="inner" tabindex="1">hello</span></div>
 <script>
   window.addEventListener("load", _ => {
-    document.body.attachShadow({mode: "open"});
+    document.body.attachShadow({ mode: "open" });
     inner.focus();
   });
 </script>

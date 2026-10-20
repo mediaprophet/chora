@@ -10,6 +10,7 @@
 
 pub mod embedder_controls;
 pub mod input_events;
+pub mod keystore;
 pub mod resources;
 pub mod user_contents;
 pub mod webdriver;
@@ -51,6 +52,7 @@ use webrender_api::units::{
 
 pub use crate::embedder_controls::*;
 pub use crate::input_events::*;
+pub use crate::keystore::*;
 use crate::user_contents::UserContentManagerId;
 pub use crate::webdriver::*;
 

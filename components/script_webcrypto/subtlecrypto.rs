@@ -87,7 +87,7 @@ use servo_constellation_traits::{
 use strum::{EnumString, IntoStaticStr, VariantArray};
 use zeroize::Zeroizing;
 
-use crate::cryptokey::{CryptoKey, CryptoKeyOrCryptoKeyPair};
+use crate::cryptokey::{CryptoKey, CryptoKeyOrCryptoKeyPair, Handle, KeyUsageSliceHelper};
 use crate::traits::{Equivalence, WebCryptoGlobalTrait};
 
 // Named elliptic curves
@@ -399,6 +399,106 @@ where
             }),
         );
     }
+
+    /// Checks if a `CryptoKey`'s handle is `Handle::HostKeystore` and, if so,
+    /// routes signing to the registered embedder keystore provider.
+    pub(crate) fn try_host_sign(
+        key: &CryptoKey<D>,
+        data: &[u8],
+    ) -> Option<Result<Vec<u8>, Error>> {
+        if let Handle::HostKeystore {
+            ref key_id,
+            ref algorithm,
+        } = key.handle()
+        {
+            let res = match embedder_traits::keystore::get_embedder_keystore_provider() {
+                Some(provider) => provider
+                    .sign(key_id, algorithm, data)
+                    .map_err(|e| Error::Operation(Some(e))),
+                None => Err(Error::Operation(Some(
+                    "No embedder keystore provider registered".into(),
+                ))),
+            };
+            Some(res)
+        } else {
+            None
+        }
+    }
+
+    /// Checks if a `CryptoKey`'s handle is `Handle::HostKeystore` and, if so,
+    /// routes verification to the registered embedder keystore provider.
+    pub(crate) fn try_host_verify(
+        key: &CryptoKey<D>,
+        data: &[u8],
+        signature: &[u8],
+    ) -> Option<Result<bool, Error>> {
+        if let Handle::HostKeystore {
+            ref key_id,
+            ref algorithm,
+        } = key.handle()
+        {
+            let res = match embedder_traits::keystore::get_embedder_keystore_provider() {
+                Some(provider) => provider
+                    .verify(key_id, algorithm, data, signature)
+                    .map_err(|e| Error::Operation(Some(e))),
+                None => Err(Error::Operation(Some(
+                    "No embedder keystore provider registered".into(),
+                ))),
+            };
+            Some(res)
+        } else {
+            None
+        }
+    }
+
+    /// Checks if a `CryptoKey`'s handle is `Handle::HostKeystore` and, if so,
+    /// routes encapsulation to the registered embedder keystore provider.
+    pub(crate) fn try_host_encapsulate(
+        key: &CryptoKey<D>,
+    ) -> Option<Result<(Vec<u8>, Vec<u8>), Error>> {
+        if let Handle::HostKeystore {
+            ref key_id,
+            ref algorithm,
+        } = key.handle()
+        {
+            let res = match embedder_traits::keystore::get_embedder_keystore_provider() {
+                Some(provider) => provider
+                    .encapsulate(key_id, algorithm)
+                    .map_err(|e| Error::Operation(Some(e))),
+                None => Err(Error::Operation(Some(
+                    "No embedder keystore provider registered".into(),
+                ))),
+            };
+            Some(res)
+        } else {
+            None
+        }
+    }
+
+    /// Checks if a `CryptoKey`'s handle is `Handle::HostKeystore` and, if so,
+    /// routes decapsulation to the registered embedder keystore provider.
+    pub(crate) fn try_host_decapsulate(
+        key: &CryptoKey<D>,
+        ciphertext: &[u8],
+    ) -> Option<Result<Vec<u8>, Error>> {
+        if let Handle::HostKeystore {
+            ref key_id,
+            ref algorithm,
+        } = key.handle()
+        {
+            let res = match embedder_traits::keystore::get_embedder_keystore_provider() {
+                Some(provider) => provider
+                    .decapsulate(key_id, algorithm, ciphertext)
+                    .map_err(|e| Error::Operation(Some(e))),
+                None => Err(Error::Operation(Some(
+                    "No embedder keystore provider registered".into(),
+                ))),
+            };
+            Some(res)
+        } else {
+            None
+        }
+    }
 }
 
 impl<D> SubtleCryptoMethods<D> for SubtleCrypto<D>
@@ -646,12 +746,24 @@ where
 
                 // Step 11. Let signature be the result of performing the sign operation specified
                 // by normalizedAlgorithm using key and algorithm and with data as message.
-                let signature = match normalized_algorithm.sign(&key, &data) {
-                    Ok(signature) => signature,
-                    Err(error) => {
-                        subtle.reject_promise_with_error(promise, error);
-                        return;
-                    },
+                let signature = if let Some(host_result) =
+                    SubtleCrypto::<D>::try_host_sign(&key, &data)
+                {
+                    match host_result {
+                        Ok(signature) => signature,
+                        Err(error) => {
+                            subtle.reject_promise_with_error(promise, error);
+                            return;
+                        },
+                    }
+                } else {
+                    match normalized_algorithm.sign(&key, &data) {
+                        Ok(signature) => signature,
+                        Err(error) => {
+                            subtle.reject_promise_with_error(promise, error);
+                            return;
+                        },
+                    }
                 };
 
                 // Step 12. Queue a global task on the crypto task source, given realm's global
@@ -737,12 +849,24 @@ where
                 // Step 12. Let result be the result of performing the verify operation specified
                 // by normalizedAlgorithm using key, algorithm and signature and with data as
                 // message.
-                let result = match normalized_algorithm.verify(&key, &data, &signature) {
-                    Ok(result) => result,
-                    Err(error) => {
-                        subtle.reject_promise_with_error(promise, error);
-                        return;
-                    },
+                let result = if let Some(host_result) =
+                    SubtleCrypto::<D>::try_host_verify(&key, &data, &signature)
+                {
+                    match host_result {
+                        Ok(result) => result,
+                        Err(error) => {
+                            subtle.reject_promise_with_error(promise, error);
+                            return;
+                        },
+                    }
+                } else {
+                    match normalized_algorithm.verify(&key, &data, &signature) {
+                        Ok(result) => result,
+                        Err(error) => {
+                            subtle.reject_promise_with_error(promise, error);
+                            return;
+                        },
+                    }
                 };
 
                 // Step 13. Queue a global task on the crypto task source, given realm's global
@@ -5186,6 +5310,9 @@ impl NormalizedAlgorithm for SignAlgorithm {
 
 impl SignAlgorithm {
     fn sign<D: Equivalence>(&self, key: &CryptoKey<D>, message: &[u8]) -> Result<Vec<u8>, Error> {
+        if let Some(host_result) = SubtleCrypto::<D>::try_host_sign(key, message) {
+            return host_result;
+        }
         match self {
             SignAlgorithm::RsassaPkcs1V1_5(_algorithm) => {
                 rsassa_pkcs1_v1_5_operation::sign(key, message)
@@ -5299,6 +5426,9 @@ impl VerifyAlgorithm {
         message: &[u8],
         signature: &[u8],
     ) -> Result<bool, Error> {
+        if let Some(host_result) = SubtleCrypto::<D>::try_host_verify(key, message, signature) {
+            return host_result;
+        }
         match self {
             VerifyAlgorithm::RsassaPkcs1V1_5(_algorithm) => {
                 rsassa_pkcs1_v1_5_operation::verify(key, message, signature)
@@ -6153,6 +6283,55 @@ impl NormalizedAlgorithm for ImportKeyAlgorithm {
     }
 }
 
+fn parse_host_key_data(key_data: &[u8], default_algorithm: &str) -> Option<(String, String)> {
+    let s = if let Some(rest) = key_data.strip_prefix(b"chora-host-key:") {
+        std::str::from_utf8(rest).ok()?.trim()
+    } else if let Some(rest) = key_data.strip_prefix(b"raw-host-handle:") {
+        std::str::from_utf8(rest).ok()?.trim()
+    } else if key_data == b"raw-host-handle" || key_data.starts_with(b"raw-host-handle") {
+        let rest = &key_data[b"raw-host-handle".len()..];
+        if rest.is_empty() {
+            return Some(("default".to_string(), default_algorithm.to_string()));
+        }
+        let rest_s = std::str::from_utf8(rest).ok()?.trim().trim_start_matches(':').trim();
+        if rest_s.is_empty() {
+            return Some(("default".to_string(), default_algorithm.to_string()));
+        }
+        rest_s
+    } else {
+        return None;
+    };
+
+    if s.is_empty() {
+        return Some(("default".to_string(), default_algorithm.to_string()));
+    }
+
+    if let Some((first, second)) = s.split_once(':') {
+        let first = first.trim();
+        let second = second.trim();
+        if first.eq_ignore_ascii_case(default_algorithm) {
+            Some((second.to_string(), first.to_string()))
+        } else if second.eq_ignore_ascii_case(default_algorithm) {
+            Some((first.to_string(), second.to_string()))
+        } else {
+            Some((first.to_string(), second.to_string()))
+        }
+    } else {
+        Some((s.to_string(), default_algorithm.to_string()))
+    }
+}
+
+fn is_raw_key_format(format: KeyFormat) -> bool {
+    matches!(
+        format,
+        KeyFormat::Raw |
+            KeyFormat::Raw_public |
+            KeyFormat::Raw_private |
+            KeyFormat::Raw_seed |
+            KeyFormat::Raw_secret
+    )
+}
+
 impl ImportKeyAlgorithm {
     fn import_key<D: Equivalence>(
         &self,
@@ -6163,6 +6342,50 @@ impl ImportKeyAlgorithm {
         extractable: bool,
         usages: Vec<KeyUsage>,
     ) -> Result<DomRoot<CryptoKey<D>>, Error> {
+        if is_raw_key_format(format) ||
+            key_data.starts_with(b"chora-host-key:") ||
+            key_data.starts_with(b"raw-host-handle")
+        {
+            if let Some((key_id, host_algorithm)) =
+                parse_host_key_data(key_data, self.name().as_str())
+            {
+                if embedder_traits::keystore::get_embedder_keystore_provider().is_none() {
+                    return Err(Error::Operation(Some(
+                        "No embedder keystore provider registered".into(),
+                    )));
+                }
+
+                let key_type = if usages.contains(&KeyUsage::Sign) {
+                    KeyType::Private
+                } else if usages.contains(&KeyUsage::Verify) {
+                    KeyType::Public
+                } else if usages.contains(&KeyUsage::Decapsulate) {
+                    KeyType::Private
+                } else if usages.contains(&KeyUsage::Encapsulate) {
+                    KeyType::Public
+                } else {
+                    KeyType::Secret
+                };
+
+                let algorithm = KeyAlgorithmAndDerivatives::KeyAlgorithm(KeyAlgorithm {
+                    name: self.name(),
+                });
+
+                return Ok(CryptoKey::new(
+                    cx,
+                    global,
+                    key_type,
+                    false, // Host keys are non-extractable
+                    algorithm,
+                    usages.normalized_value(),
+                    Handle::HostKeystore {
+                        key_id,
+                        algorithm: host_algorithm,
+                    },
+                ));
+            }
+        }
+
         match self {
             ImportKeyAlgorithm::RsassaPkcs1V1_5(algorithm) => {
                 rsassa_pkcs1_v1_5_operation::import_key(
@@ -6737,6 +6960,13 @@ impl NormalizedAlgorithm for EncapsulateAlgorithm {
 
 impl EncapsulateAlgorithm {
     fn encapsulate<D: Equivalence>(&self, key: &CryptoKey<D>) -> Result<EncapsulatedBits, Error> {
+        if let Some(host_result) = SubtleCrypto::<D>::try_host_encapsulate(key) {
+            let (ciphertext, shared_secret) = host_result?;
+            return Ok(EncapsulatedBits {
+                ciphertext: Some(ciphertext),
+                shared_key: Some(Zeroizing::new(shared_secret)),
+            });
+        }
         match self {
             EncapsulateAlgorithm::MlKem(algorithm) => ml_kem_operation::encapsulate(algorithm, key),
             EncapsulateAlgorithm::HybridKem(algorithm) => {
@@ -6802,6 +7032,9 @@ impl DecapsulateAlgorithm {
         key: &CryptoKey<D>,
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, Error> {
+        if let Some(host_result) = SubtleCrypto::<D>::try_host_decapsulate(key, ciphertext) {
+            return host_result;
+        }
         match self {
             DecapsulateAlgorithm::MlKem(algorithm) => {
                 ml_kem_operation::decapsulate(algorithm, key, ciphertext)

@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
     <title>Simultaneous Touch Moves from multiple pointers</title>
-    <link rel=help href="https://github.com/servo/servo/issues/42921">
+    <link rel=help href="https://github.com/mediaprophet/chora/issues/42921">
     <link rel="author" title="Euclid Ye" href="mailto:yezhizhenjiakang@gmail.com">
     <script src="/resources/testharness.js"></script>
     <script src="/resources/testharnessreport.js"></script>
@@ -11,6 +12,7 @@
     <script src="/resources/testdriver-actions.js"></script>
     <script src="/resources/testdriver-vendor.js"></script>
 </head>
+
 <body>
     <script>
         promise_test(async () => {
@@ -38,4 +40,5 @@
         }, "Touchmove events should track multiple pointers");
     </script>
 </body>
+
 </html>

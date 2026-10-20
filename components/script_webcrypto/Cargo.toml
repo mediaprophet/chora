@@ -36,6 +36,7 @@ ecdsa = { workspace = true }
 ed25519-dalek = { workspace = true }
 ed448-goldilocks = { workspace = true }
 elliptic-curve = { workspace = true }
+embedder_traits = { workspace = true }
 hkdf = { workspace = true }
 itertools = { workspace = true }
 js = { workspace = true }

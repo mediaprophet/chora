@@ -1,17 +1,17 @@
 <!DOCTYPE html>
 
 <head>
-    <link rel="help" href="https://github.com/servo/servo/issues/20218">
+    <link rel="help" href="https://github.com/chora/chora/issues/20218">
 </head>
 
 <script>
     onload = () => {
-      document.open();
-      try {
-          document.createRange().insertNode(document.createElement("a"));
-          document.createRange().insertNode(document.createElement("a"));
-      } finally {
-          document.close();
-      }
+        document.open();
+        try {
+            document.createRange().insertNode(document.createElement("a"));
+            document.createRange().insertNode(document.createElement("a"));
+        } finally {
+            document.close();
+        }
     };
 </script>

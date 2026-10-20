@@ -7,15 +7,17 @@ use std::future;
 use std::future::Future;
 use std::ops::Bound;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use headers::Range;
 use http::StatusCode;
 use log::error;
 use net_traits::blob_url_store::UrlWithBlobClaim;
 use net_traits::filemanager_thread::RelativePos;
+use net_traits::http_status::HttpStatus;
 use net_traits::request::Request;
-use net_traits::response::Response;
-use net_traits::{DiscardFetch, NetworkError};
+use net_traits::response::{Response, ResponseBody};
+use net_traits::{DiscardFetch, NetworkError, ResourceFetchTiming};
 use rustc_hash::FxHashMap;
 use servo_url::ServoUrl;
 use url::Position;
@@ -37,8 +39,8 @@ static FORBIDDEN_SCHEMES: [&str; 4] = ["http", "https", "chrome", "about"];
 
 pub trait ProtocolHandler: Send + Sync {
     /// A list of schema-less URLs that can be resolved against this handler's
-    /// scheme. These URLs will be granted access to the `navigator.servo`
-    /// interface to perform privileged operations that manipulate Servo internals.
+    /// scheme. These URLs will be granted access to the `navigator.chora`
+    /// interface to perform privileged operations that manipulate Chora internals.
     fn privileged_paths(&self) -> &'static [&'static str] {
         &[]
     }
@@ -158,6 +160,25 @@ impl ProtocolRegistry {
             .is_some_and(|handler| handler.is_secure())
     }
 
+    /// Return true if the registered handler for this scheme is marked as secure.
+    pub fn is_secure_scheme(&self, scheme: &str) -> bool {
+        self.is_secure(scheme)
+    }
+
+    /// Register a custom protocol scheme handled by a synchronous closure.
+    pub fn register_sync_closure(
+        &mut self,
+        scheme: &str,
+        fetchable: bool,
+        secure: bool,
+        handler: Arc<dyn Fn(&str) -> (u16, String, Vec<u8>) + Send + Sync>,
+    ) -> Result<(), ProtocolRegisterError> {
+        let handler = SyncClosureProtocolHandler::new(handler)
+            .with_fetchable(fetchable)
+            .with_secure(secure);
+        self.register(scheme, handler)
+    }
+
     pub fn privileged_urls(&self) -> Vec<ServoUrl> {
         self.handlers
             .iter()
@@ -168,6 +189,87 @@ impl ProtocolRegistry {
                     .filter_map(move |path| ServoUrl::parse(&format!("{scheme}:{path}")).ok())
             })
             .collect()
+    }
+}
+
+pub type SyncProtocolClosure = Arc<dyn Fn(&str) -> (u16, String, Vec<u8>) + Send + Sync>;
+
+/// A protocol handler backed by a synchronous closure returning `(status_code, content_type, body_bytes)`.
+///
+/// Enables host embedders to register custom protocols (such as `qualia://` or `webizen://`)
+/// with configurable fetchability and secure context flags.
+#[derive(Clone)]
+pub struct SyncClosureProtocolHandler {
+    handler: SyncProtocolClosure,
+    fetchable: bool,
+    secure: bool,
+    privileged_paths: &'static [&'static str],
+}
+
+impl SyncClosureProtocolHandler {
+    pub fn new(handler: SyncProtocolClosure) -> Self {
+        Self {
+            handler,
+            fetchable: true,
+            secure: true,
+            privileged_paths: &[],
+        }
+    }
+
+    pub fn with_fetchable(mut self, fetchable: bool) -> Self {
+        self.fetchable = fetchable;
+        self
+    }
+
+    pub fn with_secure(mut self, secure: bool) -> Self {
+        self.secure = secure;
+        self
+    }
+
+    pub fn with_privileged_paths(mut self, paths: &'static [&'static str]) -> Self {
+        self.privileged_paths = paths;
+        self
+    }
+}
+
+impl ProtocolHandler for SyncClosureProtocolHandler {
+    fn privileged_paths(&self) -> &'static [&'static str] {
+        self.privileged_paths
+    }
+
+    fn load<'a>(
+        &'a self,
+        request: &'a mut Request,
+        _done_chan: &mut DoneChannel,
+        _context: &FetchContext,
+    ) -> FutureResponse<'a> {
+        let url = request.current_url();
+        let (status_code, content_type, body_bytes) = (self.handler)(url.as_str());
+
+        let mut response =
+            Response::new(url, ResourceFetchTiming::new(request.timing_type()));
+        if let Ok(code) = StatusCode::from_u16(status_code) {
+            response.status = code.into();
+        } else {
+            response.status = HttpStatus::new_error();
+        }
+
+        if let Ok(content_type_val) = http::HeaderValue::from_str(&content_type) {
+            response
+                .headers
+                .insert(http::header::CONTENT_TYPE, content_type_val);
+        }
+
+        *response.body.lock() = ResponseBody::Done(body_bytes);
+        Box::pin(future::ready(response))
+    }
+
+    fn is_fetchable(&self) -> bool {
+        self.fetchable
+    }
+
+    fn is_secure(&self) -> bool {
+        self.secure
     }
 }
 

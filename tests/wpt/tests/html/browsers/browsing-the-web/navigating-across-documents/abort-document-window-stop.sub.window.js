@@ -1,7 +1,7 @@
 // META: title=Child that immediately stops window during loading does not crash
 // META: script=../resources/helpers.js
 
-// This test reproduces Servo issue https://github.com/servo/servo/issues/44720
+// This test reproduces chora issue https://github.com/chora/chora/issues/44720
 
 async_test((test) => {
   addIframe().then(iframe => {

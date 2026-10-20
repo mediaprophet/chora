@@ -485,6 +485,23 @@ impl std::fmt::Debug for ServoNamedGroup {
     }
 }
 
+impl ServoNamedGroup {
+    /// Return true if this named group represents a post-quantum or hybrid post-quantum key exchange group.
+    pub fn is_post_quantum(&self) -> bool {
+        match self.0 {
+            NamedGroup::X25519MLKEM768
+            | NamedGroup::MLKEM768
+            | NamedGroup::MLKEM1024
+            | NamedGroup::MLKEM512
+            | NamedGroup::secp256r1MLKEM768 => true,
+            ref g => {
+                let name = format!("{g:?}");
+                name.contains("MLKEM") || name.contains("Kyber")
+            },
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Deserialize, MallocSizeOf, PartialEq, Serialize)]
 pub struct TlsSecurityInfo {
     // "insecure", "weak", "broken", "secure".
@@ -518,6 +535,15 @@ pub struct TlsSecurityInfo {
     pub used_ocsp: bool,
     // Private DNS usage flag.
     pub used_private_dns: bool,
+}
+
+impl TlsSecurityInfo {
+    /// Returns true if the key exchange group used in this TLS session was post-quantum or hybrid post-quantum.
+    pub fn is_post_quantum_kea(&self) -> bool {
+        self.kea_group_name
+            .as_ref()
+            .is_some_and(|g| g.is_post_quantum())
+    }
 }
 
 impl FetchTaskTarget for ProfileGenericCallback<WebSocketNetworkEvent> {

@@ -4,7 +4,7 @@
 
 use cssparser::SourceLocation;
 use rayon;
-use servo_arc::Arc;
+use chora_arc::Arc;
 use style::applicable_declarations::CascadePriority;
 use style::context::QuirksMode;
 use style::error_reporting::{ContextualParseError, ParseErrorReporter};

@@ -83,6 +83,7 @@ pub(crate) enum Handle {
     ChaCha20Poly1305Key(chacha20poly1305::Key),
     KmacKey(Zeroizing<Vec<u8>>),
     Argon2Password(Zeroizing<Vec<u8>>),
+    HostKeystore { key_id: String, algorithm: String },
 }
 
 /// <https://w3c.github.io/webcrypto/#cryptokey-interface>
@@ -366,6 +367,9 @@ impl MallocSizeOf for Handle {
             Handle::ChaCha20Poly1305Key(key) => key.size_of(ops),
             Handle::KmacKey(key) => key.size_of(ops),
             Handle::Argon2Password(password) => password.size_of(ops),
+            Handle::HostKeystore { key_id, algorithm } => {
+                key_id.size_of(ops) + algorithm.size_of(ops)
+            },
         }
     }
 }
@@ -688,6 +692,7 @@ impl TryFrom<&Handle> for SerializableCryptoKeyHandle {
             Handle::Argon2Password(password) => Ok(SerializableCryptoKeyHandle::Argon2Password(
                 password.to_vec(),
             )),
+            Handle::HostKeystore { .. } => Err(()),
         }
     }
 }

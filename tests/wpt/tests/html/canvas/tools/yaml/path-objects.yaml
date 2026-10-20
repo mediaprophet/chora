@@ -3517,7 +3517,7 @@
     ctx.rect(0, 0, 100, 200);
     ctx.clip();
 
-    // Earlier in Servo, a regression was introduced.
+    // Earlier in chora, a regression was introduced.
     // This only had fill the left half of square, as clip rect
     // stored was not transformed.
     ctx.fillStyle = 'green';

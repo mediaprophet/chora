@@ -14,8 +14,8 @@ permissions:
 
 jobs:
   upstream:
-    # Run job only on servo/servo
-    if: github.repository == 'servo/servo'
+    # Run job on mediaprophet/chora or servo/servo
+    if: github.repository == 'mediaprophet/chora' || github.repository == 'servo/servo'
     runs-on: ubuntu-latest
     steps:
       - name: Calculate PR fetch depth

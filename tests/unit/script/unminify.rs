@@ -6,12 +6,12 @@ use std::borrow::Cow;
 use std::io::{ErrorKind, Write};
 
 use script::test::unminify::{create_output_file, substitute_with_local_script};
-use servo_url::ServoUrl;
+use chora_url::choraUrl;
 
 #[test]
 fn test_create_output_file_with_query_string() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    let url = ServoUrl::parse("https://example.com/app.js?v=abc123&t=456").unwrap();
+    let url = choraUrl::parse("https://example.com/app.js?v=abc123&t=456").unwrap();
 
     let result = create_output_file(dir.path().to_str().unwrap().to_owned(), &url, Some(true));
 
@@ -31,7 +31,7 @@ fn test_create_output_file_with_query_string() {
 #[test]
 fn test_create_output_file_without_query_string() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    let url = ServoUrl::parse("https://example.com/app.js").unwrap();
+    let url = choraUrl::parse("https://example.com/app.js").unwrap();
 
     let result = create_output_file(dir.path().to_str().unwrap().to_owned(), &url, Some(true));
 
@@ -42,7 +42,7 @@ fn test_create_output_file_without_query_string() {
 #[test]
 fn test_create_output_file_with_data_url() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    let url = ServoUrl::parse("data:text/javascript,console.log('pass')").unwrap();
+    let url = choraUrl::parse("data:text/javascript,console.log('pass')").unwrap();
 
     let result = create_output_file(dir.path().to_str().unwrap().to_owned(), &url, Some(true));
 
@@ -53,7 +53,7 @@ fn test_create_output_file_with_data_url() {
 #[test]
 fn replace_script_with_query_string() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    let url = ServoUrl::parse("https://example.com/app.js?query=true").unwrap();
+    let url = choraUrl::parse("https://example.com/app.js?query=true").unwrap();
 
     {
         let mut result =
@@ -69,7 +69,7 @@ fn replace_script_with_query_string() {
 #[test]
 fn replace_script_without_query_string() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    let url = ServoUrl::parse("https://example.com/app.js").unwrap();
+    let url = choraUrl::parse("https://example.com/app.js").unwrap();
 
     {
         let mut result =

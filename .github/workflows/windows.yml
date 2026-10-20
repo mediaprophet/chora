@@ -94,7 +94,7 @@ jobs:
           self-hosted-image-name: servo-windows10
           # You can disable self-hosted runners globally by creating a repository variable named
           # NO_SELF_HOSTED_RUNNERS with any non-empty value.
-          # <https://github.com/servo/servo/settings/variables/actions>
+          # <https://github.com/mediaprophet/chora/settings/variables/actions>
           NO_SELF_HOSTED_RUNNERS: ${{ vars.NO_SELF_HOSTED_RUNNERS }}
           # Any other boolean conditions that disable self-hosted runners go here.
           force-github-hosted-runner: ${{ inputs.force-github-hosted-runner }}
@@ -185,11 +185,13 @@ jobs:
           RUSTFLAGS: ${{ inputs.profile == 'checked-release' && '-D warnings' || '' }}
         run: |
           .\mach build --use-crown --locked --profile ${{ inputs.profile }} ${{ inputs.build-args }}
-          mv C:\a\servo\servo\target\cargo-timings C:\a\servo\servo\target\cargo-timings-windows
+          if (Test-Path "target\cargo-timings") { mv target\cargo-timings target\cargo-timings-windows }
       - name: Copy resources
         # GitHub-hosted runners sometimes check out the repo on D: drive.
         if: ${{ runner.environment != 'self-hosted' && startsWith(github.workspace, 'D:\') }}
-        run: cp D:\a\servo\servo\resources C:\a\servo\servo -Recurse
+        run: |
+          if (Test-Path "D:\a\chora\chora\resources") { cp D:\a\chora\chora\resources C:\a\chora\chora -Recurse -ErrorAction SilentlyContinue }
+          if (Test-Path "D:\a\servo\servo\resources") { cp D:\a\servo\servo\resources C:\a\servo\servo -Recurse -ErrorAction SilentlyContinue }
       - name: Smoketest
         run: .\mach smoketest --profile ${{ inputs.profile }}
       - name: Install cargo nextest

@@ -2342,10 +2342,10 @@ class Safari(Browser):
         return m.group(1)
 
 
-class Servo(Browser):
-    """Servo-specific interface."""
+class chora(Browser):
+    """chora-specific interface."""
 
-    product = "servo"
+    product = "chora"
     requirements = None
 
     def platform_components(self):
@@ -2357,24 +2357,24 @@ class Servo(Browser):
         }.get((uname[0], uname[4]), (None, None))
 
         if platform is None:
-            raise ValueError("Unable to construct a valid Servo package for current platform")
+            raise ValueError("Unable to construct a valid chora package for current platform")
 
         if platform == "linux":
             extension = ".tar.gz"
             decompress = untar
         elif platform in ["win", "mac", "mac-arm64"]:
-            raise ValueError("Unable to construct a valid Servo package for current platform")
+            raise ValueError("Unable to construct a valid chora package for current platform")
 
-        default_filename = f"servo-{triple}"
+        default_filename = f"chora-{triple}"
         return (platform, default_filename, extension, decompress)
 
     def _get(self, channel="nightly"):
         if channel != "nightly":
-            raise ValueError("Only nightly versions of Servo are available")
+            raise ValueError("Only nightly versions of chora are available")
 
         platform, filename, extension, _ = self.platform_components()
         artifact = f"{filename}{extension}"
-        return get(f"https://download.servo.org/nightly/{platform}/{artifact}")
+        return get(f"https://download.chora.org/nightly/{platform}/{artifact}")
 
     def download(self, dest=None, channel="nightly", rename=None, url=None):
         if dest is None:
@@ -2402,27 +2402,27 @@ class Servo(Browser):
         else:
             resp = get(url)
         decompress(resp.raw, dest=dest)
-        path = which("servoshell", path=os.path.join(dest, "servo"))
+        path = which("chorashell", path=os.path.join(dest, "chora"))
         st = os.stat(path)
         os.chmod(path, st.st_mode | stat.S_IEXEC)
         return path
 
     def find_binary(self, venv_path=None, channel=None):
-        path = which("servo", path=os.path.join(venv_path, "servo"))
+        path = which("chora", path=os.path.join(venv_path, "chora"))
         if path is None:
-            path = which("servo")
+            path = which("chora")
         return path
 
     def version(self, binary=None, webdriver_binary=None):
         """Retrieve the release version of the installed browser."""
         output = call(binary, "--version")
-        m = re.search(r"Servo ([0-9\.]+-[a-f0-9]+)?(-dirty)?$", output.strip())
+        m = re.search(r"chora ([0-9\.]+-[a-f0-9]+)?(-dirty)?$", output.strip())
         if m:
             return m.group(0)
 
-# Uses same configuration as Servo
-class ServoLegacy(Servo):
-    product = "servo_legacy"
+# Uses same configuration as chora
+class choraLegacy(chora):
+    product = "chora_legacy"
 
 
 class Sauce(Browser):

@@ -123,6 +123,38 @@ pub fn new_resource_threads(
     )
 }
 
+/// Returns a tuple of (public, private) senders to the new threads with an explicit CA certificate configuration
+/// (such as `CACertificates::EmbedderRootsOnly` or `CACertificates::CombineWithDefault`).
+#[expect(clippy::too_many_arguments)]
+pub fn new_resource_threads_with_ca_certificates(
+    devtools_sender: Option<crossbeam_channel::Sender<DevtoolsMessage>>,
+    time_profiler_chan: ProfilerChan,
+    mem_profiler_chan: MemProfilerChan,
+    embedder_proxy: GenericEmbedderProxy<NetToEmbedderMsg>,
+    config_dir: Option<PathBuf>,
+    ca_certificates: CACertificates<'static>,
+    ignore_certificate_errors: bool,
+    protocols: Arc<ProtocolRegistry>,
+) -> (ResourceThreads, ResourceThreads, Box<dyn AsyncRuntime>) {
+    let async_runtime = init_async_runtime();
+
+    let (public_core, private_core) = new_core_resource_thread(
+        devtools_sender,
+        time_profiler_chan,
+        mem_profiler_chan,
+        embedder_proxy,
+        config_dir,
+        ca_certificates,
+        ignore_certificate_errors,
+        protocols,
+    );
+    (
+        ResourceThreads::new(public_core),
+        ResourceThreads::new(private_core),
+        async_runtime,
+    )
+}
+
 /// Create a CoreResourceThread
 #[expect(clippy::too_many_arguments)]
 pub fn new_core_resource_thread(

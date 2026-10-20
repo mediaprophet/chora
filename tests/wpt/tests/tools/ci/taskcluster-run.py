@@ -19,7 +19,7 @@ def get_browser_args(product, channel, artifact_path, wpt_args):
         return ["--install-browser", "--install-webdriver"]
     if product == "firefox_android":
         return ["--install-browser", "--install-webdriver", "--logcat-dir", artifact_path]
-    if product == "servo":
+    if product == "chora":
         return ["--install-browser", "--processes=12"]
     if product == "chrome" or product == "chromium":
         # Taskcluster machines do not have GPUs, so use software rendering via --enable-swiftshader.
@@ -82,8 +82,8 @@ def main(product, channel, commit_range, artifact_path, wpt_args):
         "--install-fonts",
         "--verify-log-full"
     ]
-    # Enable headless mode for WPE MiniBrowser and Servo because they do not work under Xvfb/X11 (needs Wayland)
-    wpt_args.append("--headless" if product in ("wpewebkit_minibrowser", "servo") else "--no-headless")
+    # Enable headless mode for WPE MiniBrowser and chora because they do not work under Xvfb/X11 (needs Wayland)
+    wpt_args.append("--headless" if product in ("wpewebkit_minibrowser", "chora") else "--no-headless")
 
     wpt_args += get_browser_args(product, channel, artifact_path, wpt_args)
 

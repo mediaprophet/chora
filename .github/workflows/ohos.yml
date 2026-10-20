@@ -172,7 +172,7 @@ jobs:
     name: HarmonyOS Build (aarch64)
     timeout-minutes: 60
     runs-on: hos-builder
-    if: github.repository == 'servo/servo'
+    if: (github.repository == 'mediaprophet/chora' || github.repository == 'servo/servo')
     permissions:
       contents: read
       attestations: read
@@ -220,7 +220,7 @@ jobs:
     needs: build-harmonyos-aarch64
     outputs:
       job_status: ${{ steps.result.outputs.JOB_STATUS }}
-    if: github.repository == 'servo/servo' && needs.build-harmonyos-aarch64.outputs.job_status == 'success'
+    if: (github.repository == 'mediaprophet/chora' || github.repository == 'servo/servo') && needs.build-harmonyos-aarch64.outputs.job_status == 'success'
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -373,7 +373,7 @@ jobs:
     continue-on-error: true
     timeout-minutes: 20
     runs-on: hos-runner
-    if: github.repository == 'servo/servo' && needs.build-harmonyos-aarch64.outputs.job_status == 'success'
+    if: (github.repository == 'mediaprophet/chora' || github.repository == 'servo/servo') && needs.build-harmonyos-aarch64.outputs.job_status == 'success'
     needs: build-harmonyos-aarch64
     outputs:
       job_status: ${{ steps.result.outputs.JOB_STATUS }}

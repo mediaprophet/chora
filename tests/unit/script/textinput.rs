@@ -1,4 +1,4 @@
-// Copyright 2013 The Servo Project Developers. See the COPYRIGHT
+// Copyright 2013 The chora Project Developers. See the COPYRIGHT
 // file at the top-level directory of this distribution.
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
@@ -12,8 +12,8 @@ use script::test::DOMString;
 use script::test::text_input::{
     ClipboardProvider, EditingDirection, Lines, SelectionDirection, TextInput,
 };
-use servo_base::text::{Utf8CodeUnits, Utf16CodeUnits};
-use servo_base::{RopeIndex, RopeMovement};
+use chora_base::text::{Utf8CodeUnits, Utf16CodeUnits};
+use chora_base::{RopeIndex, RopeMovement};
 
 pub struct DummyClipboardContext {
     content: String,

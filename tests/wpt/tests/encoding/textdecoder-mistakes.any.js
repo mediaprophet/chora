@@ -317,7 +317,7 @@ test(() => {
     ],
     'iso-2022-jp': [
       [[0x1b, 0x24], '\uFFFD$'], // Node.js fails on this. Chrome, Firefox and Safari are correct
-      [[0x1b, 0x24, 0x40, 0x1b, 0x24], '\uFFFD\uFFFD'], // Last 0x24 is invalid on both attemtps. Chrome, WebKit, text-encoding fail on this. Firefox, Deno, Servo are correct
+      [[0x1b, 0x24, 0x40, 0x1b, 0x24], '\uFFFD\uFFFD'], // Last 0x24 is invalid on both attemtps. Chrome, WebKit, text-encoding fail on this. Firefox, Deno, chora are correct
     ],
     gb18030: [
       [[0xa0, 0x30, 0x2b], '\uFFFD0+'],
@@ -373,7 +373,7 @@ test(() => {
     for (let split = 1; split < input.length; split++) {
       test(() => {
         const d = new TextDecoder('euc-jp');
-        const first = d.decode(input.subarray(0, split), {stream: true});
+        const first = d.decode(input.subarray(0, split), { stream: true });
         assert_equals(first + d.decode(input.subarray(split)), expected);
       }, `EUC-JP JIS0212 state: ${bytes}, split at ${split}`);
     }
@@ -381,9 +381,9 @@ test(() => {
 }
 
 test(() => {
-  const d = new TextDecoder('euc-jp', {fatal: true});
+  const d = new TextDecoder('euc-jp', { fatal: true });
   assert_throws_js(TypeError,
-                   () => d.decode(u(0x8f, 0xa2, 0x20), {stream: true}));
+    () => d.decode(u(0x8f, 0xa2, 0x20), { stream: true }));
   // The ASCII byte is restored to the input queue before the error is returned.
   assert_equals(d.decode(u(0xa1, 0xa1)), ' \u3000');
 }, 'EUC-JP JIS0212 state after a fatal streaming error');
@@ -644,7 +644,7 @@ test(() => {
           assert_equals(chunks.join(''), str)
         }
 
-        // Deno, Servo and Bun are incorrect on big5, shift_jis, euc-kr
+        // Deno, chora and Bun are incorrect on big5, shift_jis, euc-kr
         // https://github.com/hsivonen/encoding_rs/issues/126
         {
           const d = new TextDecoder(encoding)

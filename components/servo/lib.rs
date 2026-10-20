@@ -2,26 +2,27 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-//! Servo, the mighty web browser engine from the future.
+//! Chora, the embeddable Rust web and spatial document engine library.
 //!
-//! This crate wires all of Servo's components together as type [`Servo`], along with
-//! a Webview implementation, [`WebView`], to create a working web engine.
+//! This crate wires all engine components together as primary types [`Chora`] (also [`Servo`]),
+//! along with a webview implementation, [`WebView`], to create an embeddable web and spatial
+//! document engine.
 //!
-//! To embed Servo in your application, you need to:
+//! To embed Chora in your application, you need to:
 //! 1) Create an instance of a type that implements the [`EventLoopWaker`] trait.
-//!    This trait allows Servo to integrate with your application's event loop. Your
+//!    This trait allows Chora to integrate with your application's event loop. Your
 //!    [`EventLoopWaker::wake`] implementation needs to ensure that
-//!    [`Servo::spin_event_loop`] is eventually called to let Servo process user input,
+//!    [`Chora::spin_event_loop`] is eventually called to let Chora process user input,
 //!    network events etc.
-//! 2) Create a [`Servo`] instance using the [`ServoBuilder`] type. You can optionally
-//!    register a [`ServoDelegate`] implementation to subscribe to notifications about
+//! 2) Create a [`Chora`] instance using the [`ChoraBuilder`] type. You can optionally
+//!    register a [`ChoraDelegate`] implementation to subscribe to notifications about
 //!    events and customize certain behaviours.
 //! 3) Create an instance of a type that implements the [`RenderingContext`] trait.
 //!    Note: You can either use one of the existing types in this crate (such as
 //!    [`WindowRenderingContext`], [`OffscreenRenderingContext`] or [`SoftwareRenderingContext`])
 //!    or provide a custom implementation.
 //! 4) For each [`WebView`] in your application, create a [`WebViewBuilder`] by passing
-//!    it the [`RenderingContext`] and [`Servo`] instance, and then configure the
+//!    it the [`RenderingContext`] and [`Chora`] instance, and then configure the
 //!    builder and use it to create a [`WebView`] instance. The builder must be provided
 //!    with a [`WebViewDelegate`] implementation which, at a minimum, should handle
 //!    [`WebViewDelegate::notify_new_frame_ready`] by calling [`WebView::paint`]
@@ -33,8 +34,8 @@
 //!    on that [`WebView`] instance. For example, to forward a mouse event to a [`WebView`],
 //!    call the [`WebView::notify_input_event`]. You can also invoke methods on a [`WebView`]
 //!    to request certain actions. For instance, the [`WebView::load`] method requests that
-//!    Servo navigate to a new page. In both cases, the calls to the [`WebView`] methods
-//!    must be followed by calls to [`Servo::spin_event_loop`] to allow Servo to process
+//!    Chora navigate to a new page. In both cases, the calls to the [`WebView`] methods
+//!    must be followed by calls to [`Chora::spin_event_loop`] to allow Chora to process
 //!    those requests.
 //!
 //! For a minimal working example, refer to the [`winit_minimal`] code.
@@ -113,6 +114,12 @@ pub use crate::gamepad_delegate::{
 pub use crate::network_manager::{CacheEntry, NetworkManager};
 #[cfg(feature = "multiprocess")]
 pub use crate::servo::run_content_process;
+// Chora-branded primary public types for library embedders.
+pub type Chora = crate::servo::Servo;
+pub type ChoraBuilder = crate::servo::ServoBuilder;
+pub use crate::servo_delegate::{ServoDelegate as ChoraDelegate, ServoError as ChoraError};
+pub type ChoraUrl = servo_url::ServoUrl;
+
 pub use crate::servo::{Servo, ServoBuilder};
 pub use crate::servo_delegate::{ServoDelegate, ServoError};
 pub use crate::site_data_manager::{SiteData, SiteDataManager, StorageType};
@@ -140,7 +147,7 @@ pub mod webxr {
 pub mod protocol_handler {
     pub use net::fetch::methods::{DoneChannel, FetchContext};
     pub use net::filemanager_thread::FILE_CHUNK_SIZE;
-    pub use net::protocols::{ProtocolHandler, ProtocolRegistry};
+    pub use net::protocols::*;
     pub use net_traits::filemanager_thread::RelativePos;
     pub use net_traits::http_status::HttpStatus;
     pub use net_traits::request::Request;

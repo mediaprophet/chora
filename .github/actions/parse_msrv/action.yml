@@ -1,21 +1,21 @@
-name: Parse rust-version from libservo
-description: "Parse rust-version from libservo. Requires cargo-metadata."
+name: Parse rust-version from chora
+description: "Parse rust-version from chora/libchora. Requires cargo-metadata."
 outputs:
   rust_version:
-    description: "Minimum rust-version defined by libservo"
+    description: "Minimum rust-version defined by chora"
     value: ${{ steps.parse_version.outputs.LIBSERVO_RUST_VERSION }}
 
 runs:
   using: "composite"
   steps:
-    - name: Parse libservo version
+    - name: Parse chora version
       id: parse_version
       shell: bash
       run:  |
-        msrv=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "servo") | .rust_version')
-        if [[ "${msrv}" == "null" ]]; then
-          echo "Failed to determine MSRV of servo"
+        msrv=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "servo" or .name == "chora") | .rust_version' | head -n 1)
+        if [[ "${msrv}" == "null" || -z "${msrv}" ]]; then
+          echo "Failed to determine MSRV of chora"
           exit 1
         fi
-        echo "servo has a minimum supported Rust version of ${msrv}."
+        echo "chora has a minimum supported Rust version of ${msrv}."
         echo "LIBSERVO_RUST_VERSION=${msrv}" >> "$GITHUB_OUTPUT"

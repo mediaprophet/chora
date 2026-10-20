@@ -23,7 +23,7 @@ use hyper_util::client::legacy::connect::{
     Connected, Connection, HttpConnector as HyperHttpConnector,
 };
 use hyper_util::rt::{TokioIo, TokioTimer};
-use log::warn;
+use log::{error, warn};
 use parking_lot::Mutex;
 use rustls::client::danger::ServerCertVerifier;
 use rustls::client::{ClientConnection, EchStatus};
@@ -168,6 +168,28 @@ impl TlsHandshakeInfo {
             certificate_chain_der,
             used_ech,
         }
+    }
+
+    /// Helper to test if a key exchange named group is post-quantum or hybrid post-quantum
+    /// (such as `X25519MLKEM768`, `secp256r1MLKEM768`, or standard ML-KEM).
+    pub fn is_post_quantum_kea(group: Option<NamedGroup>) -> bool {
+        match group {
+            Some(NamedGroup::X25519MLKEM768)
+            | Some(NamedGroup::secp256r1MLKEM768)
+            | Some(NamedGroup::MLKEM512)
+            | Some(NamedGroup::MLKEM768)
+            | Some(NamedGroup::MLKEM1024) => true,
+            Some(g) => {
+                let s = format!("{g:?}");
+                s.contains("MLKEM") || s.contains("Kyber")
+            },
+            None => false,
+        }
+    }
+
+    /// Returns true if this connection used a post-quantum or hybrid post-quantum key exchange group.
+    pub fn has_post_quantum_kea(&self) -> bool {
+        Self::is_post_quantum_kea(self.kea_group_name)
     }
 }
 
@@ -348,11 +370,99 @@ impl CertificateErrorOverrideManager {
     }
 }
 
+/// Policy governing root certificate verification and trust anchors.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum RootTrustPolicy {
+    /// Only trust embedder-provided root certificates (no Mozilla/OS roots).
+    EmbedderRootsOnly,
+    /// Combine embedder-provided roots with Mozilla WebPKI roots.
+    EmbedderAndWebPki,
+    /// Combine embedder-provided roots with the host platform/OS certificate store.
+    EmbedderAndPlatform,
+    /// Standard trust policy according to platform configuration.
+    #[default]
+    Default,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EmbedderCertDecision {
+    /// Explicitly allow the certificate chain (e.g. verified against embedder AU/community root or SPKI pin, or post-quantum ML-DSA cert).
+    Allow,
+    /// Explicitly deny the certificate with a reason string.
+    Deny(String),
+    /// Defer to the configured root store verifier.
+    DeferToStandard,
+}
+
+pub trait EmbedderCertVerifier: Send + Sync + std::fmt::Debug {
+    fn verify_server_cert(
+        &self,
+        end_entity_der: &[u8],
+        intermediates_der: &[&[u8]],
+        server_name: &str,
+        ocsp_response: &[u8],
+        standard_verify_result: Result<(), String>,
+    ) -> EmbedderCertDecision;
+}
+
 #[derive(Clone, Debug, Default)]
 pub enum CACertificates<'de> {
     #[default]
     Default,
     Override(Vec<CertificateDer<'de>>),
+    /// Builds a `rustls::RootCertStore` containing ONLY the provided certificates
+    /// (no Mozilla/OS roots unless included by the embedder).
+    EmbedderRootsOnly(Vec<CertificateDer<'de>>),
+    /// Adds the embedder's custom root certificates (such as Australian Root CAs and community roots)
+    /// to the platform/WebPKI verifier.
+    CombineWithDefault(Vec<CertificateDer<'de>>),
+}
+
+impl<'de> CACertificates<'de> {
+    /// Create a CACertificates instance from a `RootTrustPolicy` and root certificates.
+    pub fn from_policy(policy: RootTrustPolicy, roots: Vec<CertificateDer<'de>>) -> Self {
+        match policy {
+            RootTrustPolicy::EmbedderRootsOnly => CACertificates::EmbedderRootsOnly(roots),
+            RootTrustPolicy::EmbedderAndWebPki | RootTrustPolicy::EmbedderAndPlatform => {
+                CACertificates::CombineWithDefault(roots)
+            },
+            RootTrustPolicy::Default => {
+                if roots.is_empty() {
+                    CACertificates::Default
+                } else {
+                    CACertificates::CombineWithDefault(roots)
+                }
+            },
+        }
+    }
+}
+
+/// Create a [TlsConfig] with optional client certificate resolver (for mutual TLS / mTLS)
+/// and optional custom embedder certificate verifier (for post-quantum / AU root CA / community cert verification).
+#[servo_tracing::instrument(skip_all)]
+pub fn create_tls_config_with_client_auth(
+    ca_certificates: CACertificates<'static>,
+    ignore_certificate_errors: bool,
+    override_manager: CertificateErrorOverrideManager,
+    client_cert_resolver: Option<Arc<dyn rustls::client::ResolvesClientCert>>,
+    embedder_verifier: Option<Arc<dyn EmbedderCertVerifier>>,
+) -> TlsConfig {
+    let verifier = CertificateVerificationOverrideVerifier::new(
+        ca_certificates,
+        ignore_certificate_errors,
+        override_manager,
+    )
+    .with_embedder_verifier(embedder_verifier);
+
+    let builder = rustls::ClientConfig::builder()
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(verifier));
+
+    if let Some(resolver) = client_cert_resolver {
+        builder.with_client_cert_resolver(resolver)
+    } else {
+        builder.with_no_client_auth()
+    }
 }
 
 /// Create a [TlsConfig] to use for managing a HTTP connection. This currently creates
@@ -367,17 +477,13 @@ pub fn create_tls_config(
     ignore_certificate_errors: bool,
     override_manager: CertificateErrorOverrideManager,
 ) -> TlsConfig {
-    let verifier = CertificateVerificationOverrideVerifier::new(
+    create_tls_config_with_client_auth(
         ca_certificates,
         ignore_certificate_errors,
         override_manager,
-    );
-    // TODO: After <https://github.com/rustls/rustls-platform-verifier/pull/204> is merged,
-    // `dangerous` can be removed.
-    rustls::ClientConfig::builder()
-        .dangerous()
-        .with_custom_certificate_verifier(Arc::new(verifier))
-        .with_no_client_auth()
+        None,
+        None,
+    )
 }
 
 #[derive(Clone)]
@@ -392,13 +498,17 @@ where
     }
 }
 
-static CRYPTO_PROVIDER_CACHE: LazyLock<Arc<CryptoProvider>> = LazyLock::new(|| {
+/// Global crypto provider cache backed by `aws_lc_rs::default_provider()`.
+///
+/// Post-quantum hybrid key exchange (`X25519MLKEM768`) is supported and prioritized
+/// by TLS 1.3 handshakes when available on both client and server.
+pub static CRYPTO_PROVIDER_CACHE: LazyLock<Arc<CryptoProvider>> = LazyLock::new(|| {
     CryptoProvider::get_default()
         .cloned()
         // The embedder should have initialized the default crypto provider before
-        // initializing servo, so this should never fail.
+        // initializing chora, so this should never fail.
         .unwrap_or_else(|| {
-            warn!("Default crypto provider not initialized before first access in connector.");
+            warn!("Default crypto provider not initialized before first access in connector, using aws_lc_rs::default_provider().");
             Arc::new(aws_lc_rs::default_provider())
         })
 });
@@ -441,71 +551,104 @@ pub fn prewarm_tls() {
 }
 
 #[derive(Debug)]
-struct CertificateVerificationOverrideVerifier {
+pub struct CertificateVerificationOverrideVerifier {
     main_verifier: Arc<dyn ServerCertVerifier>,
     ignore_certificate_errors: bool,
     override_manager: CertificateErrorOverrideManager,
+    embedder_verifier: Option<Arc<dyn EmbedderCertVerifier>>,
 }
 
 impl CertificateVerificationOverrideVerifier {
-    fn new(
+    pub fn new(
         ca_certficates: CACertificates<'static>,
         ignore_certificate_errors: bool,
         override_manager: CertificateErrorOverrideManager,
     ) -> Self {
-        // From <https://github.com/rustls/rustls-platform-verifier/blob/main/README.md>:
-        // > Some manual setup is required, outside of cargo, to use this crate on
-        // > Android. In order to use Android's certificate verifier, the crate needs to
-        // > call into the JVM. A small Kotlin component must be included in your app's
-        // > build to support rustls-platform-verifier.
-        //
-        // Since we cannot count on embedders to do this setup, just stick with webpki roots
-        // on Android.
-        let use_webpki_roots = cfg!(target_os = "android") || pref!(network_use_webpki_roots);
-        let main_verifier = if !use_webpki_roots {
-            let verifier = match ca_certficates {
-                CACertificates::Default => RUSTLS_PLATFORM_VERIFIER_CACHE.clone(),
-                // Android doesn't support `Verifier::new_with_extra_roots`, but currently Android
-                // never uses the platform verifier at all.
-                CACertificates::Override(_certificates) => {
-                    #[cfg(target_os = "android")]
-                    unreachable!("Android should always use the WebPKI verifier.");
-                    #[cfg(not(target_os = "android"))]
-                    {
-                        let verifier = rustls_platform_verifier::Verifier::new_with_extra_roots(
-                            _certificates,
-                            CRYPTO_PROVIDER_CACHE.clone(),
-                        )
-                        .expect("Could not initialize platform certificate verifier");
-                        Arc::new(verifier)
+        let main_verifier = match ca_certficates {
+            CACertificates::EmbedderRootsOnly(certificates) => {
+                let mut root_store = rustls::RootCertStore::empty();
+                for certificate in certificates {
+                    if let Err(e) = root_store.add(certificate) {
+                        log::error!("Could not add embedder root certificate: {e:?}");
                     }
-                },
-            };
-            verifier as Arc<dyn ServerCertVerifier>
-        } else {
-            let mut root_store =
-                rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-            match ca_certficates {
-                CACertificates::Default => {},
-                CACertificates::Override(certificates) => {
-                    for certificate in certificates {
-                        if root_store.add(certificate).is_err() {
-                            log::error!("Could not add an override certificate.");
-                        }
+                }
+                rustls::client::WebPkiServerVerifier::builder(root_store.into())
+                    .build()
+                    .expect("Could not initialize verifier with embedder roots only.")
+                    as Arc<dyn ServerCertVerifier>
+            },
+            ca_certs => {
+                // From <https://github.com/rustls/rustls-platform-verifier/blob/main/README.md>:
+                // > Some manual setup is required, outside of cargo, to use this crate on
+                // > Android. In order to use Android's certificate verifier, the crate needs to
+                // > call into the JVM. A small Kotlin component must be included in your app's
+                // > build to support rustls-platform-verifier.
+                //
+                // Since we cannot count on embedders to do this setup, just stick with webpki roots
+                // on Android.
+                let use_webpki_roots =
+                    cfg!(target_os = "android") || pref!(network_use_webpki_roots);
+                if !use_webpki_roots {
+                    let verifier = match ca_certs {
+                        CACertificates::Default => RUSTLS_PLATFORM_VERIFIER_CACHE.clone(),
+                        // Android doesn't support `Verifier::new_with_extra_roots`, but currently Android
+                        // never uses the platform verifier at all.
+                        CACertificates::Override(certificates)
+                        | CACertificates::CombineWithDefault(certificates) => {
+                            #[cfg(target_os = "android")]
+                            unreachable!("Android should always use the WebPKI verifier.");
+                            #[cfg(not(target_os = "android"))]
+                            {
+                                let verifier =
+                                    rustls_platform_verifier::Verifier::new_with_extra_roots(
+                                        certificates,
+                                        CRYPTO_PROVIDER_CACHE.clone(),
+                                    )
+                                    .expect("Could not initialize platform certificate verifier");
+                                Arc::new(verifier)
+                            }
+                        },
+                        CACertificates::EmbedderRootsOnly(_) => unreachable!(),
+                    };
+                    verifier as Arc<dyn ServerCertVerifier>
+                } else {
+                    let mut root_store = rustls::RootCertStore::from_iter(
+                        webpki_roots::TLS_SERVER_ROOTS.iter().cloned(),
+                    );
+                    match ca_certs {
+                        CACertificates::Default => {},
+                        CACertificates::Override(certificates)
+                        | CACertificates::CombineWithDefault(certificates) => {
+                            for certificate in certificates {
+                                if root_store.add(certificate).is_err() {
+                                    log::error!("Could not add an override certificate.");
+                                }
+                            }
+                        },
+                        CACertificates::EmbedderRootsOnly(_) => unreachable!(),
                     }
-                },
-            }
-            rustls::client::WebPkiServerVerifier::builder(root_store.into())
-                .build()
-                .expect("Could not initialize platform certificate verifier.")
-                as Arc<dyn ServerCertVerifier>
+                    rustls::client::WebPkiServerVerifier::builder(root_store.into())
+                        .build()
+                        .expect("Could not initialize platform certificate verifier.")
+                        as Arc<dyn ServerCertVerifier>
+                }
+            },
         };
 
         Self {
             main_verifier,
             ignore_certificate_errors,
             override_manager,
+            embedder_verifier: None,
         }
+    }
+
+    pub fn with_embedder_verifier(
+        mut self,
+        verifier: Option<Arc<dyn EmbedderCertVerifier>>,
+    ) -> Self {
+        self.embedder_verifier = verifier;
+        self
     }
 }
 
@@ -542,13 +685,45 @@ impl rustls::client::danger::ServerCertVerifier for CertificateVerificationOverr
         ocsp_response: &[u8],
         now: UnixTime,
     ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
-        let error = match self.main_verifier.verify_server_cert(
+        let standard_result = self.main_verifier.verify_server_cert(
             end_entity,
             intermediates,
             server_name,
             ocsp_response,
             now,
-        ) {
+        );
+
+        if let Some(ref embedder_verifier) = self.embedder_verifier {
+            let intermediates_der: Vec<&[u8]> =
+                intermediates.iter().map(|cert| cert.as_ref()).collect();
+            let standard_verify_result = match &standard_result {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e.to_string()),
+            };
+
+            let server_name_str = server_name.to_str();
+            let decision = embedder_verifier.verify_server_cert(
+                end_entity.as_ref(),
+                &intermediates_der,
+                &server_name_str,
+                ocsp_response,
+                standard_verify_result,
+            );
+
+            match decision {
+                EmbedderCertDecision::Allow => {
+                    return Ok(rustls::client::danger::ServerCertVerified::assertion());
+                },
+                EmbedderCertDecision::Deny(reason) => {
+                    return Err(rustls::Error::General(reason));
+                },
+                EmbedderCertDecision::DeferToStandard => {
+                    // Continue with standard handling below.
+                },
+            }
+        }
+
+        let error = match standard_result {
             Ok(result) => return Ok(result),
             Err(error) => error,
         };

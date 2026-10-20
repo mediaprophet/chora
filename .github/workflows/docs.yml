@@ -7,8 +7,8 @@ on:
 
 jobs:
   upload-docs:
-    # This job is only useful when run on upstream servo.
-    if: github.repository == 'servo/servo' || github.event_name == 'workflow_dispatch'
+    # This job is only useful when run on upstream servo or chora.
+    if: github.repository == 'mediaprophet/chora' || github.repository == 'servo/servo' || github.event_name == 'workflow_dispatch'
     name: Upload docs to GitHub Pages
     runs-on: ubuntu-22.04
     steps:
@@ -45,7 +45,7 @@ jobs:
           git init
           git add .
           git -c user.name="Workflow" -c user.email="" \
-              commit -q -m "Rebuild Servo documentation"
+              commit -q -m "Rebuild Chora documentation"
           git remote add origin https://git:${DOC_SERVO_ORG}@github.com/servo/doc.servo.org
           git push --force origin main:gh-pages
         env:

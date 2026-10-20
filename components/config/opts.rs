@@ -17,8 +17,8 @@ use strum::{
     IntoEnumIterator,
 };
 
-/// The set of global options supported by Servo. The values for these can be configured during
-/// initialization of Servo and cannot be changed later at runtime.
+/// The set of global options supported by Chora. The values for these can be configured during
+/// initialization of Chora and cannot be changed later at runtime.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Opts {
     /// `None` to disable the time profiler or `Some` to enable it with either:
@@ -178,7 +178,7 @@ impl DiagnosticsLoggingOption {
     }
 }
 
-/// The current configuration of the diagnostic options for Servo.
+/// The current configuration of the diagnostic options for Chora.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct DiagnosticsLogging {
     options: [bool; DiagnosticsLoggingOption::COUNT],
@@ -188,7 +188,7 @@ impl DiagnosticsLogging {
     /// Create a new DiagnosticsLogging configuration.
     ///
     /// In builds with debug assertions enabled, this will automatically read and parse the
-    /// SERVO_DIAGNOSTICS environment variable if it is set.
+    /// CHORA_DIAGNOSTICS (or legacy SERVO_DIAGNOSTICS) environment variable if it is set.
     pub fn new() -> Self {
         #[cfg(not(debug_assertions))]
         return DiagnosticsLogging::default();
@@ -197,8 +197,9 @@ impl DiagnosticsLogging {
         #[cfg(debug_assertions)]
         {
             let mut config: DiagnosticsLogging = Default::default();
-            if let Ok(diagnostics_var) = std::env::var("SERVO_DIAGNOSTICS") &&
-                let Err(error) = config.extend_from_string(&diagnostics_var)
+            if let Ok(diagnostics_var) = std::env::var("CHORA_DIAGNOSTICS")
+                .or_else(|_| std::env::var("SERVO_DIAGNOSTICS"))
+                && let Err(error) = config.extend_from_string(&diagnostics_var)
             {
                 eprintln!("Could not parse debug logging option: {error}");
             };
@@ -279,9 +280,9 @@ pub fn initialize_options(opts: Opts) {
     OPTIONS.set(opts).expect("Already initialized");
 }
 
-/// Get the servo options
+/// Get the Chora options
 ///
-/// If the servo options have not been initialized by calling [`initialize_options`], then the
+/// If the Chora options have not been initialized by calling [`initialize_options`], then the
 /// options will be initialized to default values. Outside of tests the options should be
 /// explicitly initialized.
 #[inline]

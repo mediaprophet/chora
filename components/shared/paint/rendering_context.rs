@@ -43,6 +43,20 @@ pub trait RenderingContext {
     /// buffer. That means that once Servo renders to the context, this should return those
     /// results, even before [`RenderingContext::present`] is called.
     fn read_to_image(&self, source_rectangle: DeviceIntRect) -> Option<RgbaImage>;
+    /// Read RGBA8 pixels from `source_rectangle` directly into a caller-supplied buffer `dst`
+    /// without allocating a new heap buffer if supported. Returns the number of bytes written,
+    /// or `0` if no frame is available or `dst` is smaller than `width * height * 4`.
+    fn read_pixels_into(&self, source_rectangle: DeviceIntRect, dst: &mut [u8]) -> usize {
+        let Some(image) = self.read_to_image(source_rectangle) else {
+            return 0;
+        };
+        let raw = image.as_raw();
+        if dst.len() < raw.len() {
+            return 0;
+        }
+        dst[..raw.len()].copy_from_slice(raw);
+        raw.len()
+    }
     /// Get the current size of this [`RenderingContext`].
     fn size(&self) -> PhysicalSize<u32>;
     /// Get the current size of this [`RenderingContext`] as [`Size2D`].
@@ -195,12 +209,9 @@ impl SurfmanRenderingContext {
     }
 
     fn resize_bound_surface(&self, size: PhysicalSize<u32>) -> Result<(), Error> {
-        if size.width == 0 || size.height == 0 {
-            log::error!("Unable to resize to size under 1x1 ({size:?} provided)");
-            return Err(Error::Failed);
-        }
-
-        let size = Size2D::new(size.width as i32, size.height as i32);
+        let width = size.width.max(1);
+        let height = size.height.max(1);
+        let size = Size2D::new(width as i32, height as i32);
         self.device
             .borrow()
             .resize_bound_surface(&mut self.context.borrow_mut(), size)
@@ -541,6 +552,7 @@ impl RenderingContext for WindowRenderingContext {
     }
 
     fn resize(&self, size: PhysicalSize<u32>) {
+        let size = PhysicalSize::new(size.width.max(1), size.height.max(1));
         match self.surfman_context.resize_bound_surface(size) {
             Ok(..) => self.size.set(size),
             Err(error) => warn!("Error resizing surface: {error:?}"),

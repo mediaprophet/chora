@@ -6,8 +6,8 @@ on:
 
 jobs:
   upstream:
-    # Run job only on servo/servo
-    if: github.repository == 'servo/servo'
+    # Run job only on servo or chora
+    if: github.repository == 'mediaprophet/chora' || github.repository == 'servo/servo'
     runs-on: ubuntu-latest
     environment:
       name: book-sync

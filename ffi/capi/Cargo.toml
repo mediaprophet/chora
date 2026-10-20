@@ -7,7 +7,7 @@ edition.workspace = true
 publish.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-description = "C API for the Servo rendering engine"
+description = "C API for the Chora rendering engine library"
 
 [lib]
 name = "servo_capi"
@@ -35,7 +35,7 @@ url = { workspace = true }
 servo = { workspace = true, features = ["no-wgl"] }
 
 [package.metadata.capi.header]
-subdirectory = "servo"
+subdirectory = "chora"
 
 [package.metadata.capi.library]
-name = "servo_capi"
+name = "chora_capi"

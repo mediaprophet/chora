@@ -357,8 +357,8 @@ scheme host and port.""")
                                   action="store_true", default=False,
                                   help="Enable content service isolated process.")
 
-    servo_group = parser.add_argument_group("Servo-specific")
-    servo_group.add_argument("--user-stylesheet",
+    chora_group = parser.add_argument_group("chora-specific")
+    chora_group.add_argument("--user-stylesheet",
                              default=[], action="append", dest="user_stylesheets",
                              help="Inject a user CSS stylesheet into every test.")
 

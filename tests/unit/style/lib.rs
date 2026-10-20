@@ -13,7 +13,7 @@ extern crate html5ever;
 extern crate rayon;
 extern crate selectors;
 extern crate serde_json;
-extern crate servo_arc;
+extern crate chora_arc;
 extern crate style;
 extern crate style_traits;
 extern crate stylo_atoms;

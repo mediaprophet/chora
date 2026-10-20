@@ -5,7 +5,7 @@
 use std::cell::RefCell;
 
 use cssparser::SourceLocation;
-use servo_arc::Arc;
+use chora_arc::Arc;
 use style::context::QuirksMode;
 use style::error_reporting::{ContextualParseError, ParseErrorReporter};
 use style::media_queries::MediaList;

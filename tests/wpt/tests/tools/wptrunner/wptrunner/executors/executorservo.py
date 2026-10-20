@@ -11,7 +11,7 @@ from .executorwebdriver import (
 )
 
 webdriver = None
-ServoCommandExtensions = None
+choraCommandExtensions = None
 
 here = os.path.dirname(__file__)
 
@@ -20,35 +20,35 @@ def do_delayed_imports():
     global webdriver
     import webdriver
 
-    global ServoCommandExtensions
+    global choraCommandExtensions
 
-    class ServoCommandExtensions:
+    class choraCommandExtensions:
         def __init__(self, session):
             self.session = session
 
         def get_prefs(self, *prefs):
             body = {"prefs": list(prefs)}
-            return self.session.send_session_command("GET", "servo/prefs/get", body)
+            return self.session.send_session_command("GET", "chora/prefs/get", body)
 
         def set_prefs(self, prefs):
             body = {"prefs": prefs}
-            return self.session.send_session_command("POST", "servo/prefs/set", body)
+            return self.session.send_session_command("POST", "chora/prefs/set", body)
 
         def reset_prefs(self, *prefs):
             body = {"prefs": list(prefs)}
-            return self.session.send_session_command("POST", "servo/prefs/reset", body)
+            return self.session.send_session_command("POST", "chora/prefs/reset", body)
 
         def shutdown(self):
             body = {}
-            return self.session.send_session_command("DELETE", "servo/shutdown", body)
+            return self.session.send_session_command("DELETE", "chora/shutdown", body)
 
         # Clear all cookies for all origins.
         def reset_all_cookies(self):
             body = {}
-            return self.session.send_session_command("POST", "servo/cookies/reset", body)
+            return self.session.send_session_command("POST", "chora/cookies/reset", body)
 
         def change_prefs(self, old_prefs, new_prefs):
-            # Servo interprets reset with an empty list as reset everything
+            # chora interprets reset with an empty list as reset everything
             if old_prefs:
                 self.reset_prefs(*old_prefs.keys())
             self.set_prefs({k: parse_pref_value(v) for k, v in new_prefs.items()})
@@ -66,14 +66,14 @@ def parse_pref_value(value):
         return value
 
 
-class ServoDriverTestharnessProtocolPart(WebDriverTestharnessProtocolPart):
+class choraDriverTestharnessProtocolPart(WebDriverTestharnessProtocolPart):
     def reset_browser_state(self):
         self.parent.webdriver.extension.reset_all_cookies()
 
 
-class ServoProtocol(WebDriverProtocol):
+class choraProtocol(WebDriverProtocol):
     implements = [
-        ServoDriverTestharnessProtocolPart,
+        choraDriverTestharnessProtocolPart,
     ]
     for base_part in WebDriverProtocol.implements:
         if base_part.name not in {part.name for part in implements}:
@@ -81,7 +81,7 @@ class ServoProtocol(WebDriverProtocol):
 
     def __init__(self, executor, browser, capabilities, **kwargs):
         do_delayed_imports()
-        self.implements = list(ServoProtocol.implements)
+        self.implements = list(choraProtocol.implements)
         super().__init__(executor, browser, capabilities, **kwargs)
 
     def connect(self):
@@ -94,13 +94,13 @@ class ServoProtocol(WebDriverProtocol):
         self.webdriver = webdriver.Session(host, port,
                                            capabilities=capabilities,
                                            enable_bidi=self.enable_bidi,
-                                           extension=ServoCommandExtensions)
+                                           extension=choraCommandExtensions)
         self.webdriver.start()
 
 
-class ServoTestharnessExecutor(WebDriverTestharnessExecutor):
+class choraTestharnessExecutor(WebDriverTestharnessExecutor):
     supports_testdriver = True
-    protocol_cls = ServoProtocol
+    protocol_cls = choraProtocol
 
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
                  close_after_done=True, capabilities=None, debug_info=None,
@@ -117,8 +117,8 @@ class ServoTestharnessExecutor(WebDriverTestharnessExecutor):
         )
 
 
-class ServoRefTestExecutor(WebDriverRefTestExecutor):
-    protocol_cls = ServoProtocol
+class choraRefTestExecutor(WebDriverRefTestExecutor):
+    protocol_cls = choraProtocol
 
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
                  screenshot_cache=None, capabilities=None, debug_info=None,
@@ -135,8 +135,8 @@ class ServoRefTestExecutor(WebDriverRefTestExecutor):
         )
 
 
-class ServoCrashtestExecutor(WebDriverCrashtestExecutor):
-    protocol_cls = ServoProtocol
+class choraCrashtestExecutor(WebDriverCrashtestExecutor):
+    protocol_cls = choraProtocol
 
     def __init__(self, logger, browser, server_config, timeout_multiplier=1,
                  screenshot_cache=None, capabilities=None, debug_info=None,

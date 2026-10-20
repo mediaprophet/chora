@@ -12,12 +12,12 @@ use crate::parsing::parse;
 
 #[test]
 fn background_shorthand_should_parse_all_available_properties_when_specified() {
-    let input = "url(\"http://servo/test.png\") top center / 200px 200px repeat-x fixed padding-box content-box red";
+    let input = "url(\"http://chora/test.png\") top center / 200px 200px repeat-x fixed padding-box content-box red";
     let result = parse(background::parse_value, input).unwrap();
 
     assert_eq!(
         result.background_image,
-        parse_longhand!(background_image, "url(\"http://servo/test.png\")")
+        parse_longhand!(background_image, "url(\"http://chora/test.png\")")
     );
     assert_eq!(
         result.background_position_x,
@@ -72,13 +72,13 @@ fn background_shorthand_should_parse_when_some_fields_set() {
 
     let result = parse(
         background::parse_value,
-        "url(\"http://servo/test.png\") repeat blue",
+        "url(\"http://chora/test.png\") repeat blue",
     )
     .unwrap();
 
     assert_eq!(
         result.background_image,
-        parse_longhand!(background_image, "url(\"http://servo/test.png\")")
+        parse_longhand!(background_image, "url(\"http://chora/test.png\")")
     );
     assert_eq!(
         result.background_repeat,
@@ -100,17 +100,17 @@ fn background_shorthand_should_parse_when_some_fields_set() {
         parse_longhand!(background_clip, "padding-box")
     );
 
-    let result = parse(background::parse_value, "url(\"http://servo/test.png\")").unwrap();
+    let result = parse(background::parse_value, "url(\"http://chora/test.png\")").unwrap();
 
     assert_eq!(
         result.background_image,
-        parse_longhand!(background_image, "url(\"http://servo/test.png\")")
+        parse_longhand!(background_image, "url(\"http://chora/test.png\")")
     );
 }
 
 #[test]
 fn background_shorthand_should_parse_comma_separated_declarations() {
-    let input = "url(\"http://servo/test.png\") top left no-repeat, url(\"http://servo/test.png\") \
+    let input = "url(\"http://chora/test.png\") top left no-repeat, url(\"http://chora/test.png\") \
          center / 100% 100% no-repeat, white";
     let result = parse(background::parse_value, input).unwrap();
 
@@ -118,8 +118,8 @@ fn background_shorthand_should_parse_comma_separated_declarations() {
         result.background_image,
         parse_longhand!(
             background_image,
-            "url(\"http://servo/test.png\"), \
-             url(\"http://servo/test.png\"), none"
+            "url(\"http://chora/test.png\"), \
+             url(\"http://chora/test.png\"), none"
         )
     );
     assert_eq!(

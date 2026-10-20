@@ -1789,7 +1789,7 @@ wheels = [
 ]
 
 [[package]]
-name = "servo"
+name = "chora"
 version = "0.0.1"
 source = { virtual = "." }
 dependencies = [

@@ -95,16 +95,24 @@ pub struct UserScript {
     id: UserScriptId,
     script: String,
     source_file: Option<PathBuf>,
+    /// Allowed URL schemes for this script. An empty list allows all schemes.
+    #[serde(default)]
+    pub allowed_schemes: Vec<String>,
+    /// Whether the script should be injected at document end rather than at document start.
+    #[serde(default)]
+    pub run_at_document_end: bool,
 }
 
 impl UserScript {
-    /// Create a new `UserStyleSheet` for the given source string and an optional `PathBuf` representing
+    /// Create a new `UserScript` for the given source string and an optional `PathBuf` representing
     /// the location of the script on disk.
     pub fn new(script: String, source_file: Option<PathBuf>) -> Self {
         Self {
             id: UserScriptId::next(),
             script,
             source_file,
+            allowed_schemes: Vec::new(),
+            run_at_document_end: false,
         }
     }
 
@@ -122,6 +130,28 @@ impl UserScript {
     pub fn script(&self) -> &String {
         &self.script
     }
+
+    /// Restrict injection to documents loaded with the specified URL schemes.
+    pub fn with_allowed_schemes(mut self, schemes: Vec<String>) -> Self {
+        self.allowed_schemes = schemes;
+        self
+    }
+
+    /// Set this user script to run at document end rather than at document start.
+    pub fn at_document_end(mut self) -> Self {
+        self.run_at_document_end = true;
+        self
+    }
+
+    /// Returns `true` if the scheme matches the allowed schemes filter,
+    /// or if no schemes filter is set (allowing all schemes).
+    pub fn matches_scheme(&self, scheme: &str) -> bool {
+        self.allowed_schemes.is_empty()
+            || self
+                .allowed_schemes
+                .iter()
+                .any(|s| s.eq_ignore_ascii_case(scheme))
+    }
 }
 
 // Maybe we should implement `MallocSizeOf` for `PathBuf` in `malloc_size_of` crate?
@@ -133,6 +163,8 @@ impl malloc_size_of::MallocSizeOf for UserScript {
         if let Some(path) = &self.source_file {
             sum += unsafe { ops.malloc_size_of(path.as_path()) };
         }
+        sum += self.allowed_schemes.size_of(ops);
+        sum += self.run_at_document_end.size_of(ops);
         sum
     }
 }
@@ -140,5 +172,27 @@ impl malloc_size_of::MallocSizeOf for UserScript {
 impl<T: Into<String>> From<T> for UserScript {
     fn from(script: T) -> Self {
         UserScript::new(script.into(), None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_user_script_scheme_matching() {
+        let script = UserScript::from("console.log('hi');");
+        assert!(script.matches_scheme("http"));
+        assert!(script.matches_scheme("https"));
+        assert!(!script.run_at_document_end);
+
+        let scoped = script
+            .with_allowed_schemes(vec!["https".into(), "app".into()])
+            .at_document_end();
+        assert!(scoped.matches_scheme("https"));
+        assert!(scoped.matches_scheme("HTTPS"));
+        assert!(scoped.matches_scheme("app"));
+        assert!(!scoped.matches_scheme("http"));
+        assert!(scoped.run_at_document_end);
     }
 }

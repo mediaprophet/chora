@@ -173,7 +173,7 @@ class Browser:
 class NullBrowser(Browser):
     def start(self, group_metadata: GroupMetadata, **kwargs: Any) -> None:
         """No-op browser to use in scenarios where the TestRunnerManager shouldn't
-        actually own the browser process (e.g. Servo where we start one browser
+        actually own the browser process (e.g. chora where we start one browser
         per test)"""
         pass
 

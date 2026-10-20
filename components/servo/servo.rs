@@ -4,6 +4,7 @@
 
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::cmp::max;
+use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
 use std::time::Duration;
@@ -282,6 +283,8 @@ struct ServoInner {
     pending_handled_input_events: RefCell<Vec<PendingHandledInputEvent>>,
     /// An [`EventLoopWaker`] used to wake up the main embedder event loop.
     event_loop_waker: Box<dyn EventLoopWaker>,
+    /// Optional embedder keystore provider for host-delegated cryptographic operations.
+    keystore_provider: Option<Arc<dyn std::any::Any + Send + Sync>>,
 }
 
 impl ServoInner {
@@ -1045,14 +1048,24 @@ impl Servo {
             prefs::add_observer(Box::new(constellation_proxy.clone()));
         }
 
+        let mut network_manager = NetworkManager::new(
+            public_resource_threads.clone(),
+            private_resource_threads.clone(),
+            constellation_proxy.clone(),
+        );
+        for pem in builder.custom_root_pems {
+            network_manager.add_custom_root_pem(pem);
+        }
+        for path in builder.custom_root_pem_paths {
+            if let Ok(bytes) = std::fs::read(&path) {
+                network_manager.add_custom_root_pem(bytes);
+            }
+        }
+
         Servo(Rc::new(ServoInner {
             delegate: RefCell::new(Rc::new(DefaultServoDelegate)),
             paint,
-            network_manager: Rc::new(RefCell::new(NetworkManager::new(
-                public_resource_threads.clone(),
-                private_resource_threads.clone(),
-                constellation_proxy.clone(),
-            ))),
+            network_manager: Rc::new(RefCell::new(network_manager)),
             site_data_manager: SiteDataManager::new(
                 public_resource_threads,
                 private_resource_threads,
@@ -1072,6 +1085,7 @@ impl Servo {
             _js_engine_setup: js_engine_setup,
             pending_handled_input_events: Default::default(),
             event_loop_waker,
+            keystore_provider: builder.keystore_provider,
         }))
     }
 
@@ -1131,6 +1145,15 @@ impl Servo {
 
     pub fn network_manager<'a>(&'a self) -> Ref<'a, NetworkManager> {
         self.0.network_manager.borrow()
+    }
+
+    pub fn network_manager_mut<'a>(&'a self) -> RefMut<'a, NetworkManager> {
+        self.0.network_manager.borrow_mut()
+    }
+
+    /// Returns the keystore provider registered with this engine instance, if any.
+    pub fn keystore_provider(&self) -> Option<Arc<dyn std::any::Any + Send + Sync>> {
+        self.0.keystore_provider.clone()
     }
 
     pub fn site_data_manager(&self) -> &SiteDataManager {
@@ -1467,12 +1490,15 @@ impl EventLoopWaker for DefaultEventLoopWaker {
     fn wake(&self) {}
 }
 
-/// Builder for [`Servo`].
+/// Builder for [`Servo`] (or [`crate::Chora`]).
 pub struct ServoBuilder {
     opts: Option<Box<Opts>>,
     preferences: Option<Box<Preferences>>,
     event_loop_waker: Box<dyn EventLoopWaker>,
     protocol_registry: ProtocolRegistry,
+    custom_root_pems: Vec<Vec<u8>>,
+    custom_root_pem_paths: Vec<PathBuf>,
+    keystore_provider: Option<Arc<dyn std::any::Any + Send + Sync>>,
 }
 
 impl Default for ServoBuilder {
@@ -1482,6 +1508,9 @@ impl Default for ServoBuilder {
             preferences: Default::default(),
             event_loop_waker: Box::new(DefaultEventLoopWaker),
             protocol_registry: Default::default(),
+            custom_root_pems: Vec::new(),
+            custom_root_pem_paths: Vec::new(),
+            keystore_provider: None,
         }
     }
 }
@@ -1508,6 +1537,40 @@ impl ServoBuilder {
 
     pub fn protocol_registry(mut self, protocol_registry: ProtocolRegistry) -> Self {
         self.protocol_registry = protocol_registry;
+        self
+    }
+
+    /// Register custom root PEM or DER certificate bytes for PKI trust verification.
+    pub fn custom_root_pem_bytes(mut self, pem: Vec<u8>) -> Self {
+        self.custom_root_pems.push(pem);
+        self
+    }
+
+    /// Register a path to a custom root PEM bundle file.
+    pub fn custom_root_pem_path<P: Into<PathBuf>>(mut self, path: P) -> Self {
+        self.custom_root_pem_paths.push(path.into());
+        self
+    }
+
+    /// Register a collection of custom root PEM or DER certificate bytes.
+    pub fn custom_root_pems(mut self, pems: Vec<Vec<u8>>) -> Self {
+        self.custom_root_pems.extend(pems);
+        self
+    }
+
+    /// Register an embedder keystore provider for host-delegated cryptographic operations
+    /// (e.g. post-quantum ML-DSA, ML-KEM, Ed25519, X25519).
+    pub fn keystore_provider<T: 'static + Send + Sync>(mut self, provider: T) -> Self {
+        self.keystore_provider = Some(Arc::new(provider));
+        self
+    }
+
+    /// Register a generic keystore callback for host-delegated cryptographic operations.
+    pub fn keystore_callback<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(&str, &[u8]) -> Result<Vec<u8>, String> + Send + Sync + 'static,
+    {
+        self.keystore_provider = Some(Arc::new(callback));
         self
     }
 }

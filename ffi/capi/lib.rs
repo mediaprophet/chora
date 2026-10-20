@@ -14,6 +14,15 @@ extern crate servo as servo_api;
 use options::ServoOptions;
 use preferences::ServoPreferences;
 
+/// Chora engine instance type alias for the C API.
+pub type Chora = servo_api::Servo;
+
+/// Options for configuring a Chora instance.
+pub type ChoraOptions = ServoOptions;
+
+/// Preferences for configuring a Chora instance.
+pub type ChoraPreferences = ServoPreferences;
+
 /// An opaque struct representing builder for a `Servo` instance.
 /// Refer to the documentation of the corresponding
 /// [servo::ServoBuilder] struct in Rust API for more information.
@@ -35,6 +44,9 @@ pub struct ServoBuilder {
     preferences: Option<Box<ServoPreferences>>,
 }
 
+/// An opaque struct representing builder for a `Chora` instance.
+pub type ChoraBuilder = ServoBuilder;
+
 /// A callback used by Servo to wake the embedder thread when
 /// Servo has new work to process. The embedder is expected to
 /// pump Servo's event loop in response to this callback.
@@ -55,6 +67,9 @@ pub struct ServoBuilder {
 pub struct ServoEventLoopWaker {
     pub wake_callback: extern "C" fn(),
 }
+
+/// Chora event loop waker type alias for the C API.
+pub type ChoraEventLoopWaker = ServoEventLoopWaker;
 
 /// A no-op default `wake_callback` used when the embedder has not set
 /// one explicitly.
@@ -253,5 +268,153 @@ pub unsafe extern "C" fn servo_builder_free(builder: *mut ServoBuilder) {
     // for `builder` documented above.
     unsafe {
         let _ = Box::from_raw(builder);
+    }
+}
+
+// =========================================================================
+// Chora C-API Exports
+// =========================================================================
+
+/// Creates a new `ChoraBuilder` populated with default values.
+///
+/// Returns a newly allocated `ChoraBuilder` handle. The ownership of
+/// the returned handle is transferred to the caller, who must free it
+/// with [`chora_builder_free`] or consume it by passing it to
+/// [`chora_builder_build`].
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn chora_builder_create() -> *mut ChoraBuilder {
+    servo_builder_create()
+}
+
+/// Sets the preferences to be used by the `Chora` instance.
+///
+/// # Safety
+///
+/// The caller must ensure that `builder` and `preferences` are non-null pointers
+/// previously returned by their respective create functions.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn chora_builder_set_preferences(
+    builder: *mut ChoraBuilder,
+    preferences: *mut preferences::ServoPreferences,
+) {
+    unsafe {
+        servo_builder_set_preferences(builder, preferences);
+    }
+}
+
+/// Sets the options to be used by the `Chora` instance.
+///
+/// # Safety
+///
+/// The caller must ensure that `builder` and `options` are non-null pointers
+/// previously returned by their respective create functions.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn chora_builder_set_options(
+    builder: *mut ChoraBuilder,
+    options: *mut options::ServoOptions,
+) {
+    unsafe {
+        servo_builder_set_options(builder, options);
+    }
+}
+
+/// Sets the callback used to wake the embedder's event loop when Chora
+/// has new work to process.
+///
+/// # Safety
+///
+/// The caller must ensure that `builder` is a valid pointer and `event_loop_waker`
+/// satisfies the safety invariants of [`ServoEventLoopWaker`].
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn chora_builder_set_event_loop_waker(
+    builder: *mut ChoraBuilder,
+    event_loop_waker: ChoraEventLoopWaker,
+) {
+    unsafe {
+        servo_builder_set_event_loop_waker(builder, event_loop_waker);
+    }
+}
+
+/// Consumes the builder and creates a new `Chora` instance.
+///
+/// Returns a newly allocated `Chora` handle. The ownership of the
+/// returned handle is transferred to the caller, who must free it with
+/// [`chora_free`]. The resulting `Chora` instance is tied to the thread
+/// that called this function and must only be used from that thread.
+///
+/// # Safety
+///
+/// The caller must ensure that `builder` was previously returned by
+/// `chora_builder_create` and has not yet been freed nor passed to
+/// another API that takes ownership of it.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn chora_builder_build(builder: *mut ChoraBuilder) -> *mut Chora {
+    unsafe {
+        servo_builder_build(builder)
+    }
+}
+
+/// Destroys `builder` and frees its memory.
+///
+/// # Safety
+///
+/// The caller must ensure that `builder` was previously returned by
+/// `chora_builder_create` and has not yet been freed nor passed to
+/// another API that takes ownership of it.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn chora_builder_free(builder: *mut ChoraBuilder) {
+    unsafe {
+        servo_builder_free(builder);
+    }
+}
+
+/// Destroys the `Chora` instance returned by `chora_builder_build` and
+/// frees its memory.
+///
+/// # Safety
+///
+/// The caller must ensure that:
+/// - `chora` was previously returned by `chora_builder_build` and has
+///   not yet been freed nor passed to another API that takes ownership
+///   of it.
+/// - The call is made from the same thread that originally created the
+///   `Chora` instance via `chora_builder_build`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn chora_free(chora: *mut Chora) {
+    unsafe {
+        servo::servo_free(chora);
+    }
+}
+
+/// Spin the Chora event loop once. The embedder should call this
+/// periodically to process incoming messages and perform rendering
+/// updates.
+///
+/// # Safety
+///
+/// The caller must ensure that:
+/// - `chora` is a non-null pointer to a `Chora` instance previously
+///   returned by `chora_builder_build` and has not yet been freed nor
+///   passed to another API that takes ownership of it.
+/// - The call is made from the same thread that originally created the
+///   `Chora` instance via `chora_builder_build`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn chora_spin_event_loop(chora: *mut Chora) {
+    unsafe {
+        servo::servo_spin_event_loop(chora);
+    }
+}
+
+/// Initialize logging for the Chora instance.
+///
+/// # Safety
+///
+/// The caller must ensure that:
+/// - `chora` is a non-null pointer to a `Chora` instance previously
+///   returned by `chora_builder_build` and has not yet been freed.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn chora_setup_logging(chora: *mut Chora) {
+    unsafe {
+        servo::servo_setup_logging(chora);
     }
 }

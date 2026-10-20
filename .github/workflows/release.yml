@@ -9,7 +9,7 @@ env:
 jobs:
   publish-crates-io:
     name: 'Publish to crates.io'
-    if: github.repository == 'servo/servo'
+    if: github.repository == 'mediaprophet/chora' || github.repository == 'servo/servo' || github.event_name == 'workflow_dispatch'
     environment:
       name: publish_crates_io
       deployment: false

@@ -33,6 +33,7 @@ pub struct NetworkManager {
     public_resource_threads: ResourceThreads,
     private_resource_threads: ResourceThreads,
     constellation_proxy: ConstellationProxy,
+    extra_ca_pem_bundle: Vec<Vec<u8>>,
 }
 
 impl NetworkManager {
@@ -45,7 +46,18 @@ impl NetworkManager {
             public_resource_threads,
             private_resource_threads,
             constellation_proxy,
+            extra_ca_pem_bundle: Vec::new(),
         }
+    }
+
+    /// Add an embedder-supplied custom root PEM or DER certificate bundle for PKI trust verification.
+    pub fn add_custom_root_pem(&mut self, pem_or_der: Vec<u8>) {
+        self.extra_ca_pem_bundle.push(pem_or_der);
+    }
+
+    /// Returns the embedder-supplied custom root PEM/DER certificate bundles.
+    pub fn custom_roots(&self) -> &[Vec<u8>] {
+        &self.extra_ca_pem_bundle
     }
 
     /// Returns cache entries currently stored in the HTTP cache.

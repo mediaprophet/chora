@@ -5,10 +5,10 @@
 use cssparser::SourceLocation;
 use euclid::{Scale, Size2D};
 use selectors::parser::{AncestorHashes, Selector};
-use servo_arc::Arc;
+use chora_arc::Arc;
 use style::context::QuirksMode;
 use style::device::Device;
-use style::device::servo::FontMetricsProvider;
+use style::device::chora::FontMetricsProvider;
 use style::font_metrics::FontMetrics;
 use style::media_queries::MediaType;
 use style::properties::style_structs::Font;
@@ -19,7 +19,7 @@ use style::queries::values::PrefersColorScheme;
 use style::rule_tree::{RuleCascadeFlags, StyleSource};
 use style::selector_map::SelectorMap;
 use style::selector_parser::{SelectorImpl, SelectorParser};
-use style::servo::media_features::PointerCapabilities;
+use style::chora::media_features::PointerCapabilities;
 use style::shared_lock::SharedRwLock;
 use style::stylesheets::StyleRule;
 use style::stylist::{
